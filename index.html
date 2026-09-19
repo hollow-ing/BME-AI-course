@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>天气问候</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: grid;
+      place-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #f5f7fa;
+    }
+    #greeting {
+      padding: 24px;
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .08);
+      font-size: 20px;
+      text-align: center;
+      max-width: 90vw;
+    }
+  </style>
+</head>
+<body>
+  <div id="greeting">正在获取天气...</div>
+
+  <script>
+    const GREETINGS = {
+      sunny: [
+        "☀️ 早安！今天阳光很好，适合出门走走。",
+        "☀️ 天气晴朗，祝你今天心情也晴朗！"
+      ],
+      cloudy: [
+        "⛅ 早上好！今天多云，记得带件薄外套。",
+        "☁️ 今天云有点多，但心情可以很亮。"
+      ],
+      rain: [
+        "🌧️ 下雨了，记得带伞，路上小心。",
+        "☔ 今天有雨，出门别忘雨具。"
+      ],
+      snow: [
+        "❄️ 下雪啦！注意保暖，慢慢走。",
+        "🌨️ 雪天路滑，注意安全。"
+      ],
+      fog: [
+        "🌫️ 有雾，出行注意能见度，小心驾驶。",
+        "🌫️ 今天雾大，早点出门。"
+      ],
+      thunder: [
+        "⛈️ 有雷暴，尽量别在户外停留。",
+        "⛈️ 雷雨天气，注意安全。"
+      ],
+      unknown: [
+        "你好！今天也要加油哦。"
+      ]
+    };
+
+    function getCategory(code) {
+      if (code === 0) return "sunny";
+      if ([1, 2, 3].includes(code)) return "cloudy";
+      if ([45, 48].includes(code)) return "fog";
+      if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "rain";
+      if ([71, 73, 75, 77, 85, 86].includes(code)) return "snow";
+      if ([95, 96, 99].includes(code)) return "thunder";
+      return "unknown";
+    }
+
+    function pickGreeting(category) {
+      const list = GREETINGS[category] || GREETINGS.unknown;
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function todayKey() {
+      const d = new Date();
+      return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    }
+
+    async function getWeather(lat, lon) {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("天气请求失败");
+      const data = await res.json();
+      return data.current;
+    }
+
+    async function main() {
+      const el = document.getElementById("greeting");
+      const today = todayKey();
+      const last = localStorage.getItem("lastGreetingDate");
+
+      // 每天只问候一次
+      // 如果你要“仅第一次启动一次”，改成 localStorage.getItem("greeted")
+      if (last === today) {
+        el.textContent = "今天已经问候过啦，祝你一切顺利！";
+        return;
+      }
+
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) return reject(new Error("不支持定位"));
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+
+        const weather = await getWeather(pos.coords.latitude, pos.coords.longitude);
+        const category = getCategory(weather.weather_code);
+        el.textContent = `${pickGreeting(category)} 当前温度 ${weather.temperature_2m}°C。`;
+        localStorage.setItem("lastGreetingDate", today);
+      } catch (e) {
+        // 定位失败时用默认城市：上海
+        try {
+          const weather = await getWeather(31.23, 121.47);
+          const category = getCategory(weather.weather_code);
+          el.textContent = `${pickGreeting(category)} 当前温度 ${weather.temperature_2m}°C。`;
+          localStorage.setItem("lastGreetingDate", today);
+        } catch (err) {
+          el.textContent = "你好！今天也要加油哦。（天气获取失败）";
+        }
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
